@@ -583,8 +583,8 @@ class ctof_paramfit(dbData):
             wgts=self.data["nbr"]
             
         m=(steps==step)
-        h=histogram2d(tof[m],energy[m],[tofrange,energyrange])
-        hcor=histogram2d(tof[m],energy[m],[tofrange,energyrange],weights=wgts[m])
+        h=histogram2d(tof[m],energy[m],[tofrange,Erange])
+        hcor=histogram2d(tof[m],energy[m],[tofrange,Erange],weights=wgts[m])
         
         #plot pure PHA ET-matrix
         fig, ax = plt.subplots(1,1)
@@ -799,9 +799,9 @@ class ctof_paramfit(dbData):
             if CBlog==True:
                 Cont1=ax.pcolor(tofs,energies,EThist_ratio.T,cmap=my_cmap, norm=colors.LogNorm(vmin=0.1,vmax=max(ravel(EThist_ratio))))
             else:
-                if brf_range!=None:
+                if brf_stepprange!=None:
                     print("range test")
-                    Cont1=ax.pcolor(tofs,energies,EThist_ratio.T,cmap=my_cmap, vmin=brf_range[0],vmax=brf_range[-1])
+                    Cont1=ax.pcolor(tofs,energies,EThist_ratio.T,cmap=my_cmap, vmin=brf_stepprange[0],vmax=brf_stepprange[-1])
                     #return brf_range
                 else:
                     Cont1=ax.pcolor(tofs,energies,EThist_ratio.T,cmap=my_cmap, vmin=0.1,vmax=max(ravel(EThist_ratio)))
