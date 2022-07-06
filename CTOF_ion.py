@@ -27,10 +27,10 @@ from matplotlib.path import Path
 #from pylib import dbData
 from CTOF_cal import *
 #from libsoho.libctof import getionvel
-from Libsoho import ctoflv1
+from Libsoho._ctoflv1 import ctoflv1
 
 #import time modules
-from time import clock 
+#from time import clock 
 import datetime as dt
 
 #import peakshape functions

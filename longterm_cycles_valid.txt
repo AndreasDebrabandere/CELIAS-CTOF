@@ -1,0 +1,19 @@
+#CTOF DOY 174 - 220 1996, BR-corrected long-term data with minimum 500 transmitted PHA words per cycle
+#vsw_min [incl. km/s] vsw_max [incl. km/s] Epq-stepstop [incl.]  N_cycle_valid    
+320 330 90  112
+330 340 90  206
+340 350 87  234
+350 360 83  389
+380 390 79  351
+430 440 74  193
+450 460 72  94
+460 470 71  56
+470 480 70  87
+480 490 70  105
+490 500 69  65
+500 510 68  57
+510 520 67  22
+520 530 66  23
+530 540 65  16
+540 550 64  7
+550 560 63  0

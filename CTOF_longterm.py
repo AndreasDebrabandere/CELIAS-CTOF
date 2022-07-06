@@ -32,7 +32,7 @@ import pickle
 
 
 #others
-from time import clock 
+from time import perf_counter as clock 
 import datetime as dt
 
 Element_labeldict={12:"C",14:"N",16:"O",20:"Ne",24:"Mg",28:"Si",32:"S",40:"Ca",56:"Fe",59:"Ni"}

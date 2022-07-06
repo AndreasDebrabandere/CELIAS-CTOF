@@ -8,6 +8,7 @@ from CTOF_ion import Ion
 import pylab
 
 #numpy imports
+import numpy as np
 from numpy import *
 
 #scipy imports
@@ -25,17 +26,17 @@ from matplotlib.colors import Normalize, LogNorm
 from matplotlib.path import Path
  
 #import selfmade python modules
-from pylib import dbData
+from pylib.dbData._dbData import dbData
 from CTOF_cal import *
 from peakshape_functions import *
 from CTOF_ion import Ion, iondict, iondict_minimium
 from CTOF_iondist import IonDist
 
 #from libsoho.libctof import getionvel
-from Libsoho import ctoflv1
+from Libsoho._ctoflv1 import ctoflv1
 
 #import time modules
-from time import clock 
+from time import perf_counter as clock
 import datetime as dt
 
 #import peakshape functions
