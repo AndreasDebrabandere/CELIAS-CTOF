@@ -30,7 +30,7 @@ from CTOF_cal import *
 from Libsoho._ctoflv1 import ctoflv1
 
 #import time modules
-#from time import clock 
+from time import perf_counter as clock 
 import datetime as dt
 
 #import peakshape functions

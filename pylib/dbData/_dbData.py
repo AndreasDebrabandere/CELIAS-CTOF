@@ -589,7 +589,7 @@ class plot_mod(object):
 		Return the choses axis. 
 		INPUT: keyword of the axis (Can be looked up with self.show_axes)
 		"""
-		if self.axes.has_key(keya):
+		if keya in self.axes:
 			return self.axes[keya]
 		else:
 			print("Can't find axis '%s'"%(keya))
@@ -599,8 +599,8 @@ class plot_mod(object):
 		INPUT: keya: keyword of the axis (Can be looked up with self.show_axes)
 		keyt: keyword of the object (Can be looked up with self.show_axes)
 		"""
-		if self.objects.has_key(keya):
-			if self.objects[keya].has_key(keyo):
+		if keya in self.objects:
+			if keyo in self.objects[keya]:
 				return self.objects[keya][keyo]
 			else:
 				print("Can't find object %s in axis '%s'"%(keya,keyo))
@@ -648,7 +648,7 @@ class plot_mod(object):
 		which may be a list axes keys or an axis key string. If this keyword is not given,
 		lineplot is performed on all axis
 		"""
-		if kwarg.has_key("axes"):
+		if "axes" in kwarg:
 			if isinstance(kwarg["axes"],str):
 				Axes=[kwarg["axes"]]
 			else:
@@ -672,7 +672,7 @@ class plot_mod(object):
 		which may be a list axes keys or an axis key string. If this keyword is not given,
 		lineplot is performed on all axis
 		"""
-		if kwarg.has_key("axes"):
+		if "axes" in kwarg:
 			if isinstance(kwarg["axes"],str):
 				Axes=[kwarg["axes"]]
 			else:
@@ -868,7 +868,7 @@ class plot_mod(object):
 			hfit=reshape(hfit,(l,-1)) 
 			hfit=swapaxes(hfit,0,1)
 			for i in self.axes:
-				if self.objects[i].has_key("T0"):
+				if "T0" in self.objects[i]:
 					lab=self.get_object(i,"T0")
 					if lab.get_text()==mask:
 						ax=self.get_axis(i) 
@@ -939,7 +939,7 @@ class plot_mod(object):
 			hfit=reshape(hfit,(l,-1)) 
 			hfit=swapaxes(hfit,0,1)
 			for i in self.axes:
-				if self.objects[i].has_key("T0"):
+				if "T0" in self.objects[i]:
 					lab=self.get_object(i,"T0")
 					if lab.get_text()==mask:
 						ax=self.get_axis(i) 
@@ -1004,14 +1004,14 @@ class plot_properties(object):
 	def set_name(self,name):
 		self.name=name
 	def set(self,prop,val):
-		if self.props.has_key(prop):
+		if prop in self.props:
 			self.props[prop]=val
 		else:
 			print("Property %s not available!"%(prop))
 	def get_all(self):
 		return self.props
 	def get(self,prop):
-		if self.props.has_key(prop):
+		if prop in self.props:
 			return self.props[prop]
 		else:
 			return False
@@ -1019,7 +1019,7 @@ class plot_properties(object):
 		return self.name
 	def get_hist1d(self):
 		tmp = deepcopy(self.props)
-		if tmp.has_key("name"): tmp.pop("name")
+		if "name" in tmp: tmp.pop("name")
 		tmp["drawstyle"]="steps"
 		print(tmp)
 		return tmp
@@ -1084,7 +1084,7 @@ class mask(object):
 	"""
 	def __init__(self,dbd,name="Default"):
 		self.dbd = dbd
-		self.ma = ones(self.dbd.data[self.dbd.data.keys()[0]].shape[0],dtype=bool)
+		self.ma = ones(self.dbd.data[list(self.dbd.data.keys())[0]].shape[0],dtype=bool)
 		self.submasks = {}
 		if name == "Master":
 			self.appliedmasks = []
@@ -1116,7 +1116,7 @@ class mask(object):
 		if key=="all":
 			self.directmasks={}
 			self.calc_mask()
-		elif self.directmasks.has_key(key):
+		elif key in self.directmasks:
 			self.directmasks.pop(key,False)
 			self.calc_mask()
 		else:
@@ -1177,12 +1177,12 @@ class mask(object):
 			print(key+" is not in appliedmasks! No action performed!")
 		return True
 	def add_submask(self,key,operator,*arg,**kwarg):
-		if kwarg.has_key("reset") and kwarg["reset"]==True:
+		if "reset" in kwarg and kwarg["reset"]==True:
 			self.remove_submask(key)
-		if not self.dbd.data.has_key(key) and "MASK2D" not in key:
+		if key not in self.dbd.data  and "MASK2D" not in key:
 			print("add_submask : Invalid Data Product (wrong key)")
 			return False
-		if self.submasks.has_key(key):
+		if key in self.submasks:
 			self.submasks[key].append(submask(key,operator,*arg))
 		else:
 			self.submasks[key]=[submask(key,operator,*arg)]
@@ -1219,7 +1219,7 @@ class mask(object):
 			if self.name in self.dbd.mask[key].appliedmasks:
 				self.dbd.mask[key].calc_mask()
 	def calc_submask(self,prod):
-		if self.submasks.has_key(prod):
+		if prod in self.submasks:
 			tmp_ma = zeros(self.ma.shape[0],dtype=bool)
 			for subm in self.submasks[prod]:
 				tmp_ma = logical_or(tmp_ma,subm.calc(self.dbd.data[prod]))
@@ -1754,14 +1754,14 @@ class dbData(object):
 		applied: If set True adds given mask 'prod' to name.appliedmasks
 		"""
 		for mask in name:
-			if kwarg.has_key("applied"):
+			if "applied" in kwarg:
 				if kwarg["applied"]==True:
 					self.mask[mask].add_appliedmask(prod)
-			elif kwarg.has_key("direct"):
+			elif "direct" in kwarg:
 				if kwarg["direct"]==True:
 					self.mask[mask].add_directmask(prod,arg[0])
 			else:
-				if not kwarg.has_key("op"):
+				if "op" not in kwarg:
 					self.mask[mask].add_submask(prod,"be",*arg,**kwarg)
 				else:
 					self.mask[mask].add_submask(prod,kwarg["op"],*arg,**kwarg)

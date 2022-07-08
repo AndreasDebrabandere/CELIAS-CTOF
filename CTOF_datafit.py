@@ -2,6 +2,7 @@
 Class to load the CTOF PHA data (both, base-rate-corrcected and not base-rate-corrected data), visualize it as ET-matrices (residual energy vs time-of-flight for each energy-per-charge step) and to fit these ET-matrices with the CTOF response model. The CTOF response model is imported from CTOF_iondist.py  
 Author: Nils Janitzek (2021)
 """
+
 from CTOF_ion import Ion
 
 #pylab imports
@@ -12,7 +13,7 @@ import numpy as np
 from numpy import *
 
 #scipy imports
-from scipy import optimize, stats
+from scipy import optimize, interpolate, integrate, stats, constants
 from scipy.special import gamma,gammainc, erf, binom
 from scipy.optimize import leastsq
 from scipy.optimize import fmin_bfgs as minimizer 
@@ -24,7 +25,10 @@ from matplotlib import gridspec, cm, cbook
 import matplotlib.colors as colors
 from matplotlib.colors import Normalize, LogNorm
 from matplotlib.path import Path
- 
+
+#pandas imports
+import pandas as pd
+
 #import selfmade python modules
 from pylib.dbData._dbData import dbData
 from CTOF_cal import *
@@ -55,6 +59,8 @@ figx_half=6.8
 figy_full=7
 figy_half=5
 
+def phi(u):
+    return integrate.quad(lambda x: 1/sqrt(2*pi) *  e**(-(x**2)/2), -inf, u)
 
 def plot_PMdata(utimes,uvsw,uvth,udsw,save_figure=False,figpath="",filename="PMdata_timeseries"):
     
@@ -413,14 +419,14 @@ class ctof_paramfit(dbData):
             print("data saved for day %i"%(day))
 
 
-    def load_ETdata_daywise(self,days,filepath="/lhome/njanitzek/Projects/SOHO/data/mission_data/SOHO/CELIAS_Data_Processed/CTOF_PM_Sync/"):
-        #filepath="/home/hatschi/janitzek/CELIAS_Data_Processed/CTOF_PM_Sync/#old filepath
+    def load_ETdata_daywise(self,days,filepath='C:/Users/andre/CTOF_CELIAS/CELIAS-CTOF/Data'):
+        #filepath="/lhome/njanitzek/Projects/SOHO/data/mission_data/SOHO/CELIAS_Data_Processed/CTOF_PM_Sync/" # For Nils
         t0=clock()
         ETdata=empty([14,0])
         for day in days:
             filename="PHA_Final_day%i.npy"%(day)
             print("loading day:", day)
-            ETdata_day=load(file=filepath+filename)
+            ETdata_day=load(file='Data/'+filename)
             ETdata=append(ETdata,ETdata_day,axis=1)
         t1=clock()
         print("processed PHA data loaded, loading time %i seconds"%(t1-t0))
@@ -2057,10 +2063,12 @@ class ctof_paramfit(dbData):
                     minz=min(ravel(z_res))
                     maxz=max(ravel(z_res))
                     if absmax==None:
-                        Cont=ax.pcolor(x,y,z_res.T,cmap='seismic',norm = MidPointNorm(midpoint=1e-3), vmin=minz, vmax=maxz)
+                        divnorm=colors.TwoSlopeNorm(vmin=minz, vcenter=1e-3, vmax=maxz)
+                        Cont=ax.pcolor(x,y,z_res.T,cmap='seismic',norm = divnorm)
                         #absmax=max(abs(min(ravel(z))),max(ravel(z)))
                     else:
-                        Cont=ax.pcolor(x,y,z_res.T,cmap='seismic',norm = MidPointNorm(midpoint=1e-3), vmin=-absmax, vmax=absmax)
+                        divnorm=colors.TwoSlopeNorm(vmin=-absmax, vcenter=1e-3, vmax=absmax)
+                        Cont=ax.pcolor(x,y,z_res.T,cmap='seismic',norm = divnorm)
                     #cmap="Spectral"
                     Cont.cmap.set_under('w')
                     cb = fig.colorbar(Cont)
@@ -2623,7 +2631,7 @@ class ctof_paramfit(dbData):
         #return optimized
 
 
-    def analyze_veldist(self,ionlist,Chi,modelnumber,steps,ions_plot, cfracs=[0.61,0.32,0.14],velref=335.,runavg=5,MAX_velmin=400, MAX_velmax=2000,stopstep=65, cmult=False,plot_evalrange=False, Xrange=[380,720], Yrange=None,Xrange_log=[210,950],Yrange_log=None, figx=13.9,figy=9,adjust_top=0.57,lgx=-0.028,lgy=1.9,legsize=18, labelsize=20,ticklabelsize=16,vproton=None,figtitle="", savefigure=False,figpath="",figname="test",peakshape="gauss2d",plot_errorbars=False, Nboot=1000,plot_steps=False,Plot=True,scale_ions=None,figformat_autom=True,fitgauss=False,vth_fitguess=None,save_meanvels=False,filepath="",filename="Test",save_totalcounts=False,counts_filename="Counts_Test",plot_436=False):	
+    def analyze_veldist(self,ionlist,Chi,modelnumber,steps,ions_plot, cfracs=[0.61,0.32,0.14],velref=335.,runavg=5,MAX_velmin=400, MAX_velmax=2000,stopstep=65, cmult=False,plot_evalrange=False, Xrange=[380,720], Yrange=None,Xrange_log=[210,950],Yrange_log=None, figx=13.9,figy=9,adjust_top=0.57,lgx=-0.028,lgy=1.9,legsize=18, labelsize=20,ticklabelsize=16,vproton=None,figtitle="", savefigure=False,figpath="",figname="test",peakshape="gauss2d",plot_errorbars=False, Nboot=1000,plot_steps=False,Plot=True,PlotEff=True,scale_ions=None,figformat_autom=True,fitgauss=False,vth_fitguess=None,save_meanvels=False,filepath="",filename="Test",save_totalcounts=False,counts_filename="Counts_Test",plot_436=False):	
 				
 			
             """
@@ -2677,12 +2685,8 @@ class ctof_paramfit(dbData):
                     figy=11.5   
                     lgy=2.25
                     adjust_top=0.48
-                
-                
-
 
             avgoff=(runavg-1)/2
-                
             #get ion counts and count uncertainties
             if cmult==True:
                     Ioncounts=Chi[-3].transpose(2,1,0)
@@ -2709,9 +2713,9 @@ class ctof_paramfit(dbData):
                     m,q=ion.mass,ion.charge
                     
                     vmin_stop=step_to_vel(step=stopstep,q_e=q,m_amu=m)
-                    print(vmin_stop)
+                    print('vminstop',vmin_stop)
                     Vmin_stop[i]=vmin_stop
-                velmin_stop=max(Vmin_stop)#too strict, because the oother ions are still not cut by the stepper
+                velmin_stop=max(Vmin_stop)#too strict, because the other ions are still not cut by the stepper
                 
                 #calculate mean speed and standard error of the mean with Gaussian error propagation (only exact for high count rates that follow normal statistics at each eT bin in each fitted step )
                 Vels=zeros((len(I.Ions),len(steps)))
@@ -2734,7 +2738,7 @@ class ctof_paramfit(dbData):
                     vels=step_to_vel(step=steps,q_e=q,m_amu=m)
                     Maxmask=(vels>=MAX_velmin)*(vels<=MAX_velmax)
                 
-                    #apply phase spcae correction to the speed distributions 				
+                    #apply phase space correction to the speed distributions 				
                     countscor=counts*(velref/vels)**2	
                     countscor_errors=counts_errors*(velref/vels)**2
 
@@ -2747,24 +2751,26 @@ class ctof_paramfit(dbData):
                     countscor_low=countscor[ml]
                     vels_high=vels[mh]
                     countscor_high=countscor[mh]
-                    j=avgoff
-                    while j<len(countscor_low):
-                        cl=countscor_low[j-avgoff:j+avgoff+1]
+
+                    j_id=0
+                    j_id+=avgoff
+                    while j_id<len(countscor_low):
+                        cl=countscor_low[int(j_id-avgoff):int(j_id+avgoff)+1]
                         if average(cl)<cfrac*cmax:
-                            vmin=vels_low[j]
-                            jl=j*1
-                            j=len(countscor_low)
+                            vmin=vels_low[int(j_id)]
+                            jl=j_id*1
+                            j_id=len(countscor_low)
                         else: 
-                            j=j+1
-                    j=avgoff		
-                    while j<len(countscor_high):
-                        ch=countscor_high[::-1][j-avgoff:j+avgoff+1]
+                            j_id+=1
+                    j_id=avgoff		
+                    while j_id<len(countscor_high):
+                        ch=countscor_high[::-1][int(j_id-avgoff):int(j_id+avgoff)+1]
                         if average(ch)<cfrac*cmax:
-                            vmax=vels_high[::-1][j]
-                            jh=j*1
-                            j=len(countscor_high)
+                            vmax=vels_high[::-1][int(j_id)]
+                            jh=j_id*1
+                            j_id=len(countscor_high)
                         else: 
-                            j=j+1
+                            j_id+=1
                     #return array([[countscor_low,vels_low,cmax,maxvel,jl,cl,average(cl),vmin],[countscor_high[::-1],vels_high[::-1],cmax,maxvel,jh,ch,average(ch),vmax]])
                     
                     #if vmin<velmin_stop:
@@ -2818,6 +2824,9 @@ class ctof_paramfit(dbData):
                 
                 Color=["b","r","green","cyan","y","m","k","gray","orange","olive","brown","pink"]
                 
+
+                ###############################################################################
+
                 #Left Plot:
                 element_names=[]	
                 for i,ion in enumerate(I.Ions):
@@ -2953,6 +2962,11 @@ class ctof_paramfit(dbData):
                 else:
                     ax[0].set_ylim(Yrange[0],Yrange[-1])
                 
+
+
+
+
+                #####################################################################
                 #Right Plot:
                     
                 for i,ion in enumerate(I.Ions):
@@ -3057,8 +3071,99 @@ class ctof_paramfit(dbData):
                     for ionname in ions_plot:
                         counts_header=counts_header+"counts_%s "%(ionname)
                     savetxt(counts_outfile_pathfile, counts_data_out, fmt='%.2f', delimiter=' ', newline='\n',header=counts_header)
+
+
+########################################  EFFICIENCY
+
+            if PlotEff==True:
+                with open("./Data/DCeffAellig.csv") as file_name:
+                    DCeffAellig = loadtxt(file_name, delimiter=",")
+                f_eff = interpolate.interp2d([4, 16, 40, 56], arange(1, 21, 1), DCeffAellig, kind='linear')
+                SSDeff_file = pd.read_csv("./Data/effKoeten.csv")  
+                fig, ax = plt.subplots(1,2,figsize=(figx, figy))
+                element_names=[]
+
+                abundances = zeros(len(I.Ions))
                 
-                    
+                for i,ion in enumerate(I.Ions):
+                    name=ion.name
+                    element_names.append(name)
+                    print(name)
+                    m=ion.mass
+                    q=ion.charge
+                    Cmax=amax(Countscor)
+                    color=Color[i]
+                    velmean=Velmean[i]
+                    vmin=Vmin[i]
+                    vmax=Vmax[i]
+                    vels=Vels[i]
+                    countscor=Countscor[i]
+                    countscor_errors=Countscor_errors[i]
+                    totcountseff=0
+                    for v,vel in enumerate(vels):
+                        Eoq=10**(-3)*m*constants.proton_mass/(2*q*constants.elementary_charge)*(vel*10**3)**2 #in KeV/e
+                        Etot = (Eoq+25)*q # in KeV
+                        Eamu = Etot/m  # in Kev/amu
+                        #print('Eoq, Etot, Eamu:',Eoq, Etot, Eamu)
+                        FT = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'T'])
+                        FAS = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'AS'])
+                        FS = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'S'])
+                        TOFeff = f_eff(m, Eamu)[0]
+                        SSDeff = FT(Eoq)*FAS(Eoq)/FS(Eoq)*10**(-2)
+                        countscor[v]/=(TOFeff*SSDeff)
+                        if VelMin[2,i] <= vel <= VelMax[2,i]:
+                            totcountseff+=countscor[v]
+                    abundances[i]=totcountseff
+                    ax[0].plot(vels,countscor,color=color,marker="o")
+                    if fitgauss==True:
+                        xdata=vels[countscor>0]
+                        ydata=countscor[countscor>0]				
+                        fitfunc = lambda p, x: gauss1d(p,x)
+                        #errfunc = lambda p, x, y: (fitfunc(p, x) - y)/sqrt(y) 
+                        #p0 = [Cmax,velref,30]
+                        errfunc = lambda p, x, y: (fitfunc(p, x) - y) 
+                        
+                        velmask_evalrange=(xdata>=VelMin[2,i])*(xdata<=VelMax[2,i])
+                        xdata_eval=xdata[velmask_evalrange]
+                        ydata_eval=ydata[velmask_evalrange]
+                        #print("xdata_eval, ydata_eval", xdata_eval, ydata_eval, ion.name)
+                        indmax=where(ydata_eval==max(ydata_eval))[0][0]
+                        p0 = [max(ydata_eval),xdata_eval[indmax],vth_fitguess] 
+                        args = optimize.leastsq(errfunc, p0[:], args=(xdata, ydata), full_output=1)
+                        p1 = args[0]
+                        print("Gaussian VDF best fit parameters for %s:"%(ion.name), p1)  
+                        text_xpos=0.70
+                        if i==0:
+                            text_ypos=0.92
+                        elif i==1:
+                            text_ypos=0.82
+                        elif i==2:
+                            text_ypos=0.72
+                        pcov = args[1]
+                        #A=p1[0]
+                        #B=p1[1]
+                        #C=p1[2]
+                        ax[0].text(text_xpos,text_ypos,r"$\rm{ \langle v}_{fit} \rm{\rangle: \ } %.1f \rm{\ km/s} $"%(p1[1]),horizontalalignment='center',transform=ax[0].transAxes,fontsize=18,color=color)
+                        ax[0].plot(xdata,gauss1d(p1,xdata),color="k",linewidth=2)			
+                        fitparams[i]=p1
+                    #ax[0].legend(prop={'size': legsize})
+                    if lgx!=None and lgy!=None:
+                        ax[0].legend(loc="upper left",prop={'size': legsize},bbox_to_anchor=(lgx, lgy),ncol=1)
+                    ax[0].set_xlabel(r"$ \rm{ion \ speed \ [km/s]}$",fontsize=labelsize)
+                    ax[0].set_ylabel(r"$ \rm{phase \ space \ density}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
+                    ax[0].set_title(figtitle)
+                ax[1].scatter(arange(1,len(element_names)+1,1), abundances, s=50)
+                for i, label in enumerate(element_names):
+                    plt.annotate(label, (arange(1,len(element_names)+1,1)[i], abundances[i]))
+                #ax[1].legend()
+                if lgx!=None and lgy!=None:
+                    ax[1].legend(loc="upper left",bbox_to_anchor=(lgx, lgy))
+                ax[1].set_xlabel(r"$ \rm{arb. \ numbering \ of \ elements}$",fontsize=labelsize)
+                ax[1].set_ylabel(r"$ \rm{abundance \ at \ v_p \ 505 \ [km/s]}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
+                ax[1].set_title(figtitle)
+                plt.show()
+
+                print('abundances',abundances)
             return ions_plot,Velmeans
             #return ions_plot,Velmean,Velmean_error,Velmean_error_boot, Vmin,Vmax,velmin_stop,fitparams,Ions_out 
     
