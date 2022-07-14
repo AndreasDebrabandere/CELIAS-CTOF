@@ -3149,6 +3149,8 @@ class ctof_paramfit(dbData):
                     #ax[0].legend(prop={'size': legsize})
                     if lgx!=None and lgy!=None:
                         ax[0].legend(loc="upper left",prop={'size': legsize},bbox_to_anchor=(lgx, lgy),ncol=1)
+                    ax[0].set_yscale('log')
+                    ax[0].set_ylim(1,1e5)
                     ax[0].set_xlabel(r"$ \rm{ion \ speed \ [km/s]}$",fontsize=labelsize)
                     ax[0].set_ylabel(r"$ \rm{phase \ space \ density}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
                     ax[0].set_title(figtitle)
@@ -3158,8 +3160,10 @@ class ctof_paramfit(dbData):
                 #ax[1].legend()
                 if lgx!=None and lgy!=None:
                     ax[1].legend(loc="upper left",bbox_to_anchor=(lgx, lgy))
+                ax[1].set_yscale('log')
+                ax[1].set_ylim(1e3,3e6)
                 ax[1].set_xlabel(r"$ \rm{arb. \ numbering \ of \ elements}$",fontsize=labelsize)
-                ax[1].set_ylabel(r"$ \rm{abundance \ at \ v_p \ 505 \ [km/s]}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
+                ax[1].set_ylabel(r"$ \rm{abundance \ at \ v_p \ 335 \ [km/s]}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
                 ax[1].set_title(figtitle)
                 plt.show()
 
