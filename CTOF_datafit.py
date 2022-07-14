@@ -3,6 +3,7 @@ Class to load the CTOF PHA data (both, base-rate-corrcected and not base-rate-co
 Author: Nils Janitzek (2021)
 """
 
+from shutil import which
 from CTOF_ion import Ion
 
 #pylab imports
@@ -2631,7 +2632,7 @@ class ctof_paramfit(dbData):
         #return optimized
 
 
-    def analyze_veldist(self,ionlist,Chi,modelnumber,steps,ions_plot, cfracs=[0.61,0.32,0.14],velref=335.,runavg=5,MAX_velmin=400, MAX_velmax=2000,stopstep=65, cmult=False,plot_evalrange=False, Xrange=[380,720], Yrange=None,Xrange_log=[210,950],Yrange_log=None, figx=13.9,figy=9,adjust_top=0.57,lgx=-0.028,lgy=1.9,legsize=18, labelsize=20,ticklabelsize=16,vproton=None,figtitle="", savefigure=False,figpath="",figname="test",peakshape="gauss2d",plot_errorbars=False, Nboot=1000,plot_steps=False,Plot=True,PlotEff=True,scale_ions=None,figformat_autom=True,fitgauss=False,vth_fitguess=None,save_meanvels=False,filepath="",filename="Test",save_totalcounts=False,counts_filename="Counts_Test",plot_436=False):	
+    def analyze_veldist(self,ionlist,Chi,modelnumber,steps,ions_plot, cfracs=[0.61,0.32,0.14],velref=335.,runavg=5,MAX_velmin=400, MAX_velmax=2000,stopstep=65, cmult=False,plot_evalrange=False, Xrange=[380,720], Yrange=None,Xrange_log=[210,950],Yrange_log=None, figx=13.9,figy=9,adjust_top=0.57,lgx=-0.028,lgy=1.9,legsize=18, labelsize=20,ticklabelsize=16,vproton=None,figtitle="", savefigure=False,figpath="",figname="test",peakshape="gauss2d",plot_errorbars=False, Nboot=1000,plot_steps=False,Plot=False,PlotEff=True,scale_ions=None,figformat_autom=True,fitgauss=False,vth_fitguess=None,save_meanvels=False,filepath="",filename="Test",save_totalcounts=False,counts_filename="Counts_Test",plot_436=False):	
 				
 			
             """
@@ -2822,7 +2823,7 @@ class ctof_paramfit(dbData):
                 #fig.subplots_adjust(left=1.1*bbox.width)
                 fig.subplots_adjust(top=adjust_top)
                 
-                Color=["b","r","green","cyan","y","m","k","gray","orange","olive","brown","pink"]
+                Color=["b","r","green","cyan","y","m","k","gray","orange","olive","brown","pink","indigo","teal","palegreen","navy","sandybrown","springgreen","gold","b","r","green","cyan","y","m","k","gray","orange","olive","brown","pink","indigo","teal","palegreen","navy","sandybrown","springgreen","gold"]
                 
 
                 ###############################################################################
@@ -3080,8 +3081,10 @@ class ctof_paramfit(dbData):
                     DCeffAellig = loadtxt(file_name, delimiter=",")
                 f_eff = interpolate.interp2d([4, 16, 40, 56], arange(1, 21, 1), DCeffAellig, kind='linear')
                 SSDeff_file = pd.read_csv("./Data/effKoeten.csv")  
-                fig, ax = plt.subplots(1,2,figsize=(figx, figy))
+                #fig, ax = plt.subplots(1,2,figsize=(figx, figy))
+                fig, ax = plt.subplots()
                 element_names=[]
+                element_charges=[]
 
                 abundances = zeros(len(I.Ions))
                 
@@ -3091,6 +3094,7 @@ class ctof_paramfit(dbData):
                     print(name)
                     m=ion.mass
                     q=ion.charge
+                    element_charges.append(q)
                     Cmax=amax(Countscor)
                     color=Color[i]
                     velmean=Velmean[i]
@@ -3114,7 +3118,7 @@ class ctof_paramfit(dbData):
                         if VelMin[2,i] <= vel <= VelMax[2,i]:
                             totcountseff+=countscor[v]
                     abundances[i]=totcountseff
-                    ax[0].plot(vels,countscor,color=color,marker="o")
+                    '''ax[0].plot(vels,countscor,color=color,marker="o")
                     if fitgauss==True:
                         xdata=vels[countscor>0]
                         ydata=countscor[countscor>0]				
@@ -3150,23 +3154,72 @@ class ctof_paramfit(dbData):
                     if lgx!=None and lgy!=None:
                         ax[0].legend(loc="upper left",prop={'size': legsize},bbox_to_anchor=(lgx, lgy),ncol=1)
                     ax[0].set_yscale('log')
-                    ax[0].set_ylim(1,1e5)
                     ax[0].set_xlabel(r"$ \rm{ion \ speed \ [km/s]}$",fontsize=labelsize)
                     ax[0].set_ylabel(r"$ \rm{phase \ space \ density}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
-                    ax[0].set_title(figtitle)
-                ax[1].scatter(arange(1,len(element_names)+1,1), abundances, s=50)
-                for i, label in enumerate(element_names):
-                    plt.annotate(label, (arange(1,len(element_names)+1,1)[i], abundances[i]))
+                    ax[0].set_title(figtitle)'''
+                abundances = [float(i)/sum(abundances) for i in abundances]
+                #ax.scatter(arange(1,len(element_names)+1,1), abundances, s=50)
+                ax.bar(arange(1,len(element_names)+1,1), abundances)
+                #for i, label in enumerate(element_names):
+                #    plt.annotate(label, (arange(1,len(element_names)+1,1)[i], abundances[i]))
+                #ax.set_xticks(np.add(element_charges,(0.8/2))) # set the position of the x ticks
+                ax.set_xticks(arange(1,len(element_names)+1,1))
+                labels=(elementn[:-1] for elementn in element_names)
+                ax.set_xticklabels(labels)
+                #ax.tick_params(axis='y', which='minor')
                 #ax[1].legend()
                 if lgx!=None and lgy!=None:
-                    ax[1].legend(loc="upper left",bbox_to_anchor=(lgx, lgy))
-                ax[1].set_yscale('log')
-                ax[1].set_ylim(1e3,3e6)
-                ax[1].set_xlabel(r"$ \rm{arb. \ numbering \ of \ elements}$",fontsize=labelsize)
-                ax[1].set_ylabel(r"$ \rm{abundance \ at \ v_p \ 335 \ [km/s]}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
-                ax[1].set_title(figtitle)
+                    ax.legend(loc="upper left",bbox_to_anchor=(lgx, lgy))
+                #ax.set_yscale('log')
+                #ax.grid(which='both', axis='y')
+                ax.set_title('Slow wind abundances')
+                ax.set_xlabel(r"$ \rm{Ion \ species}$",fontsize=labelsize)
+                ax.set_ylabel(r"$ \rm{abundance \ at \ v_p \ 335 \ [km/s]}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
                 plt.show()
-
+                elems=[]
+                elemabundances=[]
+                ssabundance=[]
+                FIPS = pd.read_csv("./Data/FIP.csv")
+                plotfips=[]
+                for i,ion in enumerate(I.Ions):  
+                    name = ion.name
+                    print(name)
+                    elem=''
+                    for letter in name:
+                        print(letter)
+                        if not letter.isdigit() and letter!='+':
+                            elem+=letter
+                    if not elem in elems and i!=0:
+                        print(elem)
+                        elems.append(elem)
+                        elemabundances.append(elemabundance)
+                        plotfips.append(FIPS.iloc[ion.atomnumber-1,1])
+                        elemabundance=abundances[i]
+                        ssabundance.append(10**(FIPS.iloc[ion.atomnumber-1,2]-12))
+                    elif not elem in elems and i==0:
+                        print(elem)
+                        elems.append(elem)
+                        plotfips.append(FIPS.iloc[ion.atomnumber-1,1])
+                        elemabundance=abundances[i]
+                        ssabundance.append(10**(FIPS.iloc[ion.atomnumber-1,2]-12))
+                    else:
+                        elemabundance+=abundances[i]
+                elemabundances.append(elemabundance)
+                print(elemabundances)
+                print('ssabundance',ssabundance)
+                elemabundances=[(elemabundances[i] / elemabundances[2]) / (ssabundance[i]/ssabundance[2]) for i in range(len(elemabundances))]
+                print(elemabundances)
+                fig, ax = plt.subplots()
+                ax.scatter(plotfips, elemabundances)
+                for i, txt in enumerate(elems):
+                    ax.annotate(txt, (plotfips[i]+.25, elemabundances[i]), fontsize=12)
+                ax.set_yscale('log')
+                ax.set_title('Average element abundance ratios dependency on FIP for slow wind')
+                ax.set_xlabel(r"$ \rm{First \ ionization \ potential \ (FIP) \ [V]}$",fontsize=labelsize)
+                ax.set_ylabel(r"$ \rm{Relative \ abundance \ to \ oxygen}$" "\n" r"$\rm{[arb. \ units]}$",fontsize=labelsize)
+                plt.show()
+                    
+                    
                 print('abundances',abundances)
             return ions_plot,Velmeans
             #return ions_plot,Velmean,Velmean_error,Velmean_error_boot, Vmin,Vmax,velmin_stop,fitparams,Ions_out 
