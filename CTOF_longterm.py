@@ -168,8 +168,6 @@ class CTOF(object):
         return fitresult_data
 
 
-
-
     def run_fit_longtermspectra_showexample(self,ionlist, vswfilter=[500,510],peakshapes="kappa_moyalpar_Easym", tailranges=[[0.00325,0.]], Minimization_algorithm="Powell", Termtol=1e-4, Plot_2dcontour=True, Plot_residuals="relative", absmax=1.,Plot_tofproj=True, steps=arange(35,95,1),plot_elementhypes=False, elementhyp_markersize=10):
         if vswfilter==[330,340]:
             #steps=arange(35,95,1)
@@ -340,7 +338,7 @@ class CTOF(object):
         
         if vswfilter==[330,340]:
             Steps=arange(35,95,1)#check why 35! and stopstep 87!
-            velmean_data=self.data.analyze_veldist(ionlist=fitresult_data[-1],Chi=fitresult_data,modelnumber=0,steps=Steps,ions_plot=ions_plot,cfracs=[0.61,0.32,0.14],velref=335.,runavg=3,MAX_velmin=200, MAX_velmax=470,stopstep=95, cmult=cmult,plot_evalrange=True, Xrange=[270,400],Yrange=Yrange,Xrange_log=[240,560],Yrange_log=None,figx=13.9,figy=9,adjust_top=0.57,lgx=0.1,lgy=1.9,legsize=legsize,labelsize=labelsize,ticklabelsize=ticklabelsize,vproton=None,figtitle="",savefigure=savefigure,figpath="",figname="test",peakshape=peakmodel,plot_errorbars=False, Nboot=1000,plot_steps=plot_steps,Plot=True,figformat_autom=True, fitgauss=True,vth_fitguess=15,save_meanvels=save_meanvels,filepath=filepath,filename=filename,scale_ions=scale_ions,save_totalcounts=save_totalcounts,counts_filename=counts_filename)
+            velmean_data=self.data.analyze_veldist(ionlist=fitresult_data[-1],Chi=fitresult_data,modelnumber=0,steps=Steps,ions_plot=ions_plot,cfracs=[0.61,0.32,0.14],velref=335.,runavg=3,MAX_velmin=200, MAX_velmax=470,stopstep=95, cmult=cmult,plot_evalrange=True, Xrange=[270,400],Yrange=Yrange,Xrange_log=[240,560],Yrange_log=None,figx=13.9,figy=9,adjust_top=0.57,lgx=0.1,lgy=1.9,legsize=legsize,labelsize=labelsize,ticklabelsize=ticklabelsize,vproton=None,figtitle="",savefigure=savefigure,figpath="",figname="test",peakshape=peakmodel,plot_errorbars=False, Nboot=1000,plot_steps=plot_steps,Plot=False,figformat_autom=True, fitgauss=True,vth_fitguess=15,save_meanvels=save_meanvels,filepath=filepath,filename=filename,scale_ions=scale_ions,save_totalcounts=save_totalcounts,counts_filename=counts_filename)
 
         if vswfilter==[340,350]:
             Steps=arange(27,95,1)
@@ -418,7 +416,7 @@ class CTOF(object):
         elif vswfilter==[500,510]:
             #Steps=arange(20,72,1)
             Steps=arange(18,75,1)
-            velmean_data=self.data.analyze_veldist(ionlist=fitresult_data[-1],Chi=fitresult_data,modelnumber=0,steps=Steps,ions_plot=ions_plot,cfracs=[0.61,0.32,0.14],velref=505.,runavg=5,MAX_velmin=400, MAX_velmax=2000,stopstep=68, cmult=cmult,plot_evalrange=False, Xrange=[350,720],Yrange=Yrange,Xrange_log=[210,1150],Yrange_log=None,figx=13.9,figy=9,adjust_top=0.57,lgx=0.1,lgy=1.9,legsize=legsize,labelsize=labelsize,ticklabelsize=ticklabelsize,vproton=505,figtitle="",savefigure=savefigure,figpath="",figname="test",peakshape=peakmodel,plot_errorbars=False, Nboot=1000,plot_steps=plot_steps,Plot=True, figformat_autom=True, fitgauss=False,vth_fitguess=45,save_meanvels=save_meanvels,filepath=filepath,filename=filename,scale_ions=scale_ions,plot_436=plot_436)
+            velmean_data=self.data.analyze_veldist(ionlist=fitresult_data[-1],Chi=fitresult_data,modelnumber=0,steps=Steps,ions_plot=ions_plot,cfracs=[0.61,0.32,0.14],velref=505.,runavg=5,MAX_velmin=400, MAX_velmax=2000,stopstep=68, cmult=cmult,plot_evalrange=False, Xrange=[350,720],Yrange=Yrange,Xrange_log=[210,1150],Yrange_log=None,figx=13.9,figy=9,adjust_top=0.57,lgx=0.1,lgy=1.9,legsize=legsize,labelsize=labelsize,ticklabelsize=ticklabelsize,vproton=505,figtitle="",savefigure=savefigure,figpath="",figname="test",peakshape=peakmodel,plot_errorbars=False, Nboot=1000,plot_steps=plot_steps,Plot=False, figformat_autom=True, fitgauss=False,vth_fitguess=45,save_meanvels=save_meanvels,filepath=filepath,filename=filename,scale_ions=scale_ions,plot_436=plot_436)
         
         elif vswfilter==[510,520]:
             #Steps=arange(20,72,1)
