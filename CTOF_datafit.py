@@ -3,7 +3,6 @@ Class to load the CTOF PHA data (both, base-rate-corrcected and not base-rate-co
 Author: Nils Janitzek (2021)
 """
 
-#from selectors import EpollSelector
 from shutil import which
 from CTOF_ion import Ion
 
@@ -61,6 +60,18 @@ figx_half=6.8
 figy_full=7
 figy_half=5
 
+
+def eff_unc(Z):
+    Z_He=2.
+    Z_Fe=26.
+    effunc_He=0.1
+    effunc_Fe=0.3
+    grad=(effunc_Fe-effunc_He)/(Z_Fe-Z_He)
+    offset=effunc_He-Z_He*grad
+    effunc=grad*Z+offset
+    return effunc
+
+
 def phi(u):
     return integrate.quad(lambda x: 1/sqrt(2*pi) *  e**(-(x**2)/2), -inf, u)
 
@@ -84,7 +95,7 @@ def plot_PMdata(utimes,uvsw,uvth,udsw,save_figure=False,figpath="",filename="PMd
     fig.subplots_adjust(hspace=0)
     
     fontsize=16
-    ticklabelsize=14
+    ticklabelsize=16
     legsize=14
     markersize=5
     elinewidth=1.5, 
@@ -302,6 +313,50 @@ class MidPointNorm(Normalize):
                 return  val*abs(vmax-midpoint) + midpoint
 
 
+#Spitzer (2013) proton-proton coll. age
+
+def calc_kintemps(m,vth):  
+	"""
+
+	calculates kinetic temperatures,
+	m in amu, vth in km/s, returns kinetic temperatures in eV (= energy), 
+	"""
+	M=m*1.66e-27
+	Vth=vth*1000.
+	k_B=1.38e-23
+	T=M*Vth**2/(2*k_B)
+	return T
+
+def CouLog(T,n):
+	L=9.42+log(T**(3./2)/n**(1./2))
+	return L
+
+def colltime(T,n,CL):
+	tc=11.4*(T**(3./2)/n)*1./CL
+	return tc
+
+
+def calc_colage_pp(v,vth,n):
+	
+	r=1.5e11#1AU in m
+	V=v*1000.#speed in m/s
+	t_exp=r/V
+
+	T=calc_kintemps(vth=vth,m=1)
+	#print T
+	CL=CouLog(T,n)
+	#print CL
+	
+	t_col=colltime(T,n,CL)
+	#print t_exp,t_col
+
+	#return t_col
+
+	AC=t_exp/t_col
+
+	return AC
+
+
 
 
 class ctof_paramfit(dbData):						
@@ -336,13 +391,29 @@ class ctof_paramfit(dbData):
             self.data["baserate_raw"] = PHAdata[9]
             self.data["baserate"] = PHAdata[10]
             
-
             #PM data, synchronized with CTOF PHA data		      
             self.data["dsw"] = PHAdata[11]
             self.data["vsw"] = PHAdata[12]
             self.data["vth"] = PHAdata[13]
+            #proton-proton collisional age derived from PM data
+            self.data["capp"]=calc_colage_pp(v=self.data["vsw"],vth=self.data["vth"],n=self.data["dsw"])
 
+            #unique PM data products used e.g. for solar wind classification
+            self.data["utime"]=unique(self.data["time"])
+            ss=searchsorted(self.data["time"],self.data["utime"])
+            self.data["uvsw"]=self.data["vsw"][ss]
+            self.data["uvth"]=self.data["vth"][ss]
+            self.data["udsw"]=self.data["dsw"][ss]
+            self.data["ucapp"]=self.data["capp"][ss]
+            
+            PMmask_valid=(self.data["udsw"]>0)*(self.data["uvsw"]>0)*(self.data["uvth"]>0)#get rid of invalid PM values
+            self.data["utime_pmvalid"]=self.data["utime"][PMmask_valid]
+            self.data["uvsw_pmvalid"]=self.data["uvsw"][PMmask_valid]
+            self.data["uvth_pmvalid"]=self.data["uvth"][PMmask_valid]
+            self.data["udsw_pmvalid"]=self.data["udsw"][PMmask_valid]
+            self.data["ucapp_pmvalid"]=self.data["ucapp"][PMmask_valid]
 
+        
         else:
             
             t0=clock()
@@ -399,7 +470,85 @@ class ctof_paramfit(dbData):
                 baserate=dat.baserate*1.
                 baserate[baserate<1]=1.
                 self.data["baserate"]=baserate
-
+                
+    
+    def plot_PMdata_timeseries(self,vsw_capp_filter=False,labelsize=16,ticklabelsize=16):
+        
+    
+        
+        fig, ax = plt.subplots(4,1,sharex=True)
+        ax[0].set_title(r"$\rm{SOHO/CELIAS \ Proton \ Monitor \ Data, \ DOY \ 174 \ - \ 220, \ 1996}$",fontsize=20)
+        if vsw_capp_filter==True:
+            cf_high=(log10(self.data["ucapp_pmvalid"])>-0.6)
+            cf_inter=(log10(self.data["ucapp_pmvalid"])>-1.1)*(log10(self.data["ucapp_pmvalid"])<=-0.6)         
+            cf_low=(log10(self.data["ucapp_pmvalid"])<=-1.1)         
+            ax[0].plot(self.data["utime_pmvalid"][cf_high],self.data["uvsw_pmvalid"][cf_high],color="r",linestyle="None",marker="o",markersize=1,label="col. age high")
+            ax[0].plot(self.data["utime_pmvalid"][cf_inter],self.data["uvsw_pmvalid"][cf_inter],color="orange",linestyle="None",marker="o",markersize=1,label="col. age interm.")
+            ax[0].plot(self.data["utime_pmvalid"][cf_low],self.data["uvsw_pmvalid"][cf_low],color="m",linestyle="None",marker="o",markersize=1,label="col. age low")
+            ax[0].legend(loc="upper left")
+        else:
+            ax[0].plot(self.data["utime_pmvalid"],self.data["uvsw_pmvalid"])
+        
+        ax[0].set_ylabel(r"$\rm{v}_p \rm{\ [km/s]}$",fontsize=labelsize)
+        ax[0].tick_params(axis="y", labelsize=ticklabelsize)
+        ax[1].plot(self.data["utime_pmvalid"],self.data["uvth_pmvalid"])
+        ax[1].set_ylabel(r"$\rm{v}_{p,th} \rm{\ [km/s]}$",fontsize=labelsize)
+        ax[1].tick_params(axis="y", labelsize=ticklabelsize)
+        ax[2].plot(self.data["utime_pmvalid"],self.data["udsw_pmvalid"])
+        ax[2].set_ylabel(r"$\rm{d}_p \rm{\ [1/cm}^3\rm{]}$",fontsize=labelsize)
+        ax[2].tick_params(axis="y", labelsize=ticklabelsize)
+        ax[3].plot(self.data["utime_pmvalid"],log10(self.data["ucapp_pmvalid"]))
+        ax[3].set_ylabel(r"$\log_{10}\rm{(AC}_{pp}\rm{)}$",fontsize=labelsize)
+        ax[3].set_xlabel(r"$\rm{time \ [DOY \ 1996]}$",fontsize=labelsize)
+        ax[3].tick_params(axis="y", labelsize=ticklabelsize)
+        ax[3].tick_params(axis="x", labelsize=ticklabelsize)
+        
+        
+    def plot_PMdata_histograms(self,b_vsw=10,b_vth=2,b_dsw=1,b_lcapp=0.1,hspace=0.2):
+        fig, ax = plt.subplots(4,1)
+        fig.subplots_adjust(hspace=hspace)
+        ax[0].set_title("SOHO/CELIAS Proton Monitor Data, DOY 174 - 220, 1996, (histograms)")
+        h_vsw=histogram(self.data["uvsw_pmvalid"],bins=arange(250,600,b_vsw))
+        ax[0].bar(h_vsw[1][:-1]+b_vsw/2.,h_vsw[0],width=b_vsw)        
+        ax[0].set_xlabel("vsw [km/s]")
+        ax[0].set_ylabel("N")
+        h_vth=histogram(self.data["uvth_pmvalid"],bins=arange(0,80,b_vth))
+        ax[1].bar(h_vth[1][:-1]+b_vth/2.,h_vth[0],width=b_vsw)        
+        ax[1].set_xlabel("vth [km/s]")
+        ax[1].set_ylabel("N")
+        h_dsw=histogram(self.data["udsw_pmvalid"],bins=arange(0,30,b_dsw))
+        ax[2].bar(h_dsw[1][:-1]+b_dsw/2.,h_dsw[0],width=b_dsw)        
+        ax[2].set_xlabel("dsw [1/cm^3]")
+        ax[2].set_ylabel("N")
+        h_lcapp=histogram(log10(self.data["ucapp_pmvalid"]),bins=arange(-2,2,b_lcapp))
+        ax[3].bar(h_lcapp[1][:-1]+b_lcapp/2.,h_lcapp[0],width=b_lcapp)        
+        ax[3].set_xlabel("log_10(AC_pp)")
+        ax[3].set_ylabel("N")
+        
+        
+    def plot_PMdata_2Dhistogram(self,b_vsw=10,b_lcapp=0.1,CBlog=False,labelsize=16,ticklabelsize=16):
+        binx=arange(250,600,b_vsw)
+        biny=arange(-2,2,b_lcapp)
+        h=histogram2d(self.data["uvsw_pmvalid"],log10(self.data["ucapp_pmvalid"]),bins=(binx,biny))
+        H=h[0].reshape(len(binx)-1,len(biny)-1)
+        
+        fig, ax = plt.subplots(1,1)
+        ax.set_title("")
+        my_cmap = cm.get_cmap("jet",1024*16)
+        my_cmap.set_under('w')
+        if CBlog==True:
+            #return h[0],h[1],h[2],
+            Cont1=ax.pcolormesh(binx,biny,H.T,cmap=my_cmap, norm=colors.LogNorm(vmin=1,vmax=max(ravel(h[0]))))
+        else:
+            Cont1=ax.pcolormesh(binx,biny,H.T,cmap=my_cmap, vmin=1,vmax=max(ravel(h[0])))
+        cb1 = fig.colorbar(Cont1)
+        cb1.set_label(r"$\rm{number \ of \ cases}$",fontsize=labelsize)	
+        ax.set_xlabel(r"$\rm{v}_p \rm{\ [km/s]}$",fontsize=labelsize)
+        ax.set_ylabel(r"$\log_{10}\rm{(AC}_{pp}\rm{)}$",fontsize=labelsize)
+        ax.tick_params(axis="y", labelsize=ticklabelsize)
+        ax.tick_params(axis="x", labelsize=ticklabelsize)
+        
+        
     def save_ETdata(self,filepath="/home/hatschi/janitzek/CELIAS_Data_Processed/CTOF_PM_Sync/",filename="PHA_Final_DOY174-220"):
         data=array([self.data["seconds"],self.data["time"],self.data["steps"], self.data["tof"],self.data["energy"],self.data["range"],self.data["mass-per-charge"], self.data["mass"],self.data["stepmax"],self.data["baserate_raw"],self.data["baserate"],self.data["dsw"],self.data["vsw"],self.data["vth"]])
         save(file=filepath+filename,arr=data)		
@@ -1310,7 +1459,7 @@ class ctof_paramfit(dbData):
 
 
 
-    def estimate_gk_peakpars_2d_sequence_fast(self,ionlist,steps, timerange=[174,220],tofrange=[180,611],Erange=[1,121], PR_range=[1,4],vsw_range=[0,1000], vproton_RCfilter=True, peakshapes="kappa_moyalpar_Easym",tailranges=None,Minimization="Normal",Poisson_Minapprox=True,Minimization_algorithm="Powell",Termtol=1.e-04,include_countweights=True,fitmincounts=10,baserate_correction=True,br_scaling=True,PHAmin=500,Epq_stopstep_min=0,check_fitarea=False,Plot_start_model=False,plot_chi2_label=True,Plot_2dcontour=True,figy_size=7, plot_2dcontour_xlabel=True,plot_model_title=True,plot_modelcontour=True, model_contourcolor="m", plot_datacontour=True, plot_elementhypes=True, elementhyp_markersize=5,plot_vswfilter=False, ionpos_markercolor="k", ionpos_markeredgecolor="k",CBlog=True, Plot_residuals=False, absmax=10., Plot_tofproj=False, plot_tof_errbars=False, plot_toflegend=False, Plot_tofproj_log=False, plot_Eproj=False,figuresize="fullwidth",save_figures=False, save_countdata=False, chidata_filename="chidata_test",plot_rectangle=None,TOFPOS_shift_O6=False,TOFPOS_shift_N6=False,TOFPOS_shift_Si8=False,TOFPOS_shift_Fe9=False,TOFPOS_shift_C5=False,SSDPOS_shift_C5=False,SSDPOS_shift_N6=False,TOFPOS_shift_Ne8=False,SSDPOS_shift_Ne8=False,TOFPOS_shift_Mg10=False,SSDPOS_shift_Mg10=False,SSDPOS_shift_Si8=False,SSDPOS_shift_S8=False,TOFPOS_shift_S8=False,TOFPOS_shift_Ca10=False,SSDPOS_shift_Ca10=False,shiftamount=0,xrange_plot=None,yrange_plot=None):
+    def estimate_gk_peakpars_2d_sequence_fast(self,ionlist,steps, timerange=[174,220],tofrange=[180,611],Erange=[1,121], PR_range=[1,4],vsw_range=[0,1000], vproton_RCfilter=True, peakshapes="kappa_moyalpar_Easym",tailranges=None,Minimization="Normal",Poisson_Minapprox=True,Minimization_algorithm="Powell",Termtol=1.e-04,include_countweights=True,fitmincounts=10,baserate_correction=True,br_scaling=True,PHAmin=500,Epq_stopstep_min=0,check_fitarea=False,Plot_start_model=False,plot_chi2_label=True,Plot_2dcontour=True,figy_size=7, plot_2dcontour_xlabel=True,plot_model_title=True,plot_modelcontour=True, model_contourcolor="m", plot_datacontour=True, plot_elementhypes=True, elementhyp_markersize=5,plot_vswfilter=False, ionpos_markercolor="k", ionpos_markeredgecolor="k",CBlog=True, Plot_residuals=False, absmax=10., Plot_tofproj=False, plot_tof_errbars=False, plot_toflegend=False, Plot_tofproj_log=False, plot_Eproj=False,figuresize="fullwidth",save_figures=False, save_countdata=False, chidata_filename="chidata_test",plot_rectangle=None,TOFPOS_shift_O6=False,TOFPOS_shift_N7=False,TOFPOS_shift_Si7=False,TOFPOS_shift_Fe10=False,xrange_plot=None,yrange_plot=None):
       
         """
         Status: The correctness of the overall optimization is checked.
@@ -1351,9 +1500,9 @@ class ctof_paramfit(dbData):
         vswfilter=[]
         if TOFPOS_shift_O6==True:
             path0="fit_figures/tofshift/O6/"
-        elif TOFPOS_shift_Si8==True:
+        elif TOFPOS_shift_Si7==True:
             path0="fit_figures/tofshift/Si7/"
-        elif TOFPOS_shift_Fe9==True:
+        elif TOFPOS_shift_Fe10==True:
             path0="fit_figures/tofshift/Fe10/"
         else:
             path0="fit_figures/test/"
@@ -1525,92 +1674,27 @@ class ctof_paramfit(dbData):
                     Ion_ind=Ion_ind+1
                 
                     #TOFPOS_shift: Only use to illustrate model sensitivity!
-                    if TOFPOS_shift_C5==True:
-                        #shift Si8+ by +2 TOF channels
-                        if ion.mass==12 and ion.charge==5:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount 
-                            ion.peakpars_values[step][1]=ion.posTOF[step]
-                    if SSDPOS_shift_C5==True:
-                        #shift Si8+ by +2 SSD channels
-                        if ion.mass==12 and ion.charge==5:
-                            ion.posE[step]=ion.posE[step]+shiftamount 
-                            ion.peakpars_values[step][2]=ion.posE[step]                   
-                    if TOFPOS_shift_N6==True:
-                        #shift N6+ by +2 TOF channels
-                        if ion.mass==14 and ion.charge==6:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount 
-                            ion.peakpars_values[step][1]=ion.posTOF[step]
-                        if ion.mass==14 and ion.charge==7:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount 
-                            ion.peakpars_values[step][1]=ion.posTOF[step]
-                    if SSDPOS_shift_N6==True:
-                        #shift N6+ by +2 SSD channels
-                        if ion.mass==14 and ion.charge==6:
-                            ion.posE[step]=ion.posE[step]+shiftamount 
-                            ion.peakpars_values[step][2]=ion.posE[step]
-                        if ion.mass==14 and ion.charge==7:
-                            ion.posE[step]=ion.posE[step]+shiftamount 
-                            ion.peakpars_values[step][2]=ion.posE[step]
                     if TOFPOS_shift_O6==True:
                         #shift O6+ by +2 TOF channels
                         if ion.mass==16 and ion.charge==6:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount
+                            ion.posTOF[step]=ion.posTOF[step]+2 
                             ion.peakpars_values[step][1]=ion.posTOF[step]
-                    if TOFPOS_shift_Ne8==True:
-                        #shift Si8+ by +2 TOF channels
-                        if ion.mass==20 and ion.charge==8:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount 
+                    if TOFPOS_shift_N7==True:
+                        #shift O6+ by +2 TOF channels
+                        if ion.mass==14 and ion.charge==7:
+                            ion.posTOF[step]=ion.posTOF[step]-2 
                             ion.peakpars_values[step][1]=ion.posTOF[step]
-                    if SSDPOS_shift_Ne8==True:
-                        #shift Si8+ by +2 SSD channels
-                        if ion.mass==20 and ion.charge==8:
-                            ion.posE[step]=ion.posE[step]+shiftamount 
-                            ion.peakpars_values[step][2]=ion.posE[step]
-                    if TOFPOS_shift_Mg10==True:
-                        #shift Si8+ by +2 TOF channels
-                        if ion.mass==24 and ion.charge==10:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount 
+                    if TOFPOS_shift_Si7==True:
+                        #shift Si7+ by +2 TOF channels
+                        if ion.mass==28 and ion.charge==7:
+                            ion.posTOF[step]=ion.posTOF[step]+2 
                             ion.peakpars_values[step][1]=ion.posTOF[step]
-                    if SSDPOS_shift_Mg10==True:
-                        #shift Si8+ by +2 SSD channels
-                        if ion.mass==24 and ion.charge==10:
-                            ion.posE[step]=ion.posE[step]+shiftamount 
-                            ion.peakpars_values[step][2]=ion.posE[step]                          
-                    if TOFPOS_shift_Si8==True:
-                        #shift Si8+ by +2 TOF channels
-                        if ion.mass==28 and ion.charge==8:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount 
-                            ion.peakpars_values[step][1]=ion.posTOF[step]
-                    if SSDPOS_shift_Si8==True:
-                        #shift Si8+ by +2 SSD channels
-                        if ion.mass==28 and ion.charge==8:
-                            ion.posE[step]=ion.posE[step]+shiftamount 
-                            ion.peakpars_values[step][2]=ion.posE[step]
-                    if SSDPOS_shift_S8==True:
-                        #shift S8+ by +2 SSD channels
-                        if ion.mass==32 and ion.charge==8:
-                            ion.posE[step]=ion.posE[step]+shiftamount 
-                            ion.peakpars_values[step][2]=ion.posE[step]
-                    if TOFPOS_shift_S8==True:
-                        #shift S8+ by +2 SSD channels
-                        if ion.mass==32 and ion.charge==8:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount 
-                            ion.peakpars_values[step][1]=ion.posTOF[step]                            
-                    if TOFPOS_shift_Ca10==True:
-                        #shift Si8+ by +2 TOF channels
-                        if ion.mass==40 and ion.charge==10:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount 
-                            ion.peakpars_values[step][1]=ion.posTOF[step]
-                    if SSDPOS_shift_Ca10==True:
-                        #shift Si8+ by +2 SSD channels
-                        if ion.mass==40 and ion.charge==10:
-                            ion.posE[step]=ion.posE[step]+shiftamount 
-                            ion.peakpars_values[step][2]=ion.posE[step]
-                    if TOFPOS_shift_Fe9==True:
+                    if TOFPOS_shift_Fe10==True:
                         #shift Fe9+ by +2 TOF channels
-                        if ion.mass==56 and ion.charge==9:
-                            ion.posTOF[step]=ion.posTOF[step]+shiftamount
+                        if ion.mass==56 and ion.charge==10:
+                            ion.posTOF[step]=ion.posTOF[step]+2 
                             ion.peakpars_values[step][1]=ion.posTOF[step]
+                            
                 
                 
                 #create response model function with normed peak heights as (only) free parameters
@@ -1624,7 +1708,7 @@ class ctof_paramfit(dbData):
                     p0=array(start_intensities)[ionlist_stepfit_mask].astype(float)
                 else:
                     p0 = array([10]*len(I_stepfit.Ions))					
-                print(I_stepfit.Ion_names)
+                
                 if Minimization=="Normal":
                     print("Minimization: Normal")
                     if Minimization_algorithm=="Levenberg-Marquardt":
@@ -1794,7 +1878,6 @@ class ctof_paramfit(dbData):
                 #return ioncounts,hgs,hdata*(mincounts_mask*gridmask_allions)    
                 ioncounts_mult=multres(ioncounts,hgs,hdata*(mincounts_mask*gridmask_allions))
                 print("ioncounts_mult:",ioncounts_mult,max(ioncounts_mult),len(ioncounts_mult))
-                print("chi2_red",Chi2_red)
                 #return ioncounts_mult,hdata*(mincounts_mask*gridmask_allions)
                 
                 
@@ -1805,7 +1888,7 @@ class ctof_paramfit(dbData):
                 #Plotting of the fits starts here: TODO: this whole part should be "outsourced" as individual methods or even a small plotting class  
                 
                 #plot fitted model as contour plot,if desired
-                elcolors=["b","g","r","k","orange","gray","m","y","c","olive","royalblue","pink","mediumblue","darkviolet"]
+                elcolors=["b","g","r","k","orange","gray","m","y","c","olive","royalblue","pink","brown","darkviolet"]
                 
                 if Plot_2dcontour==True:
                     z=H_data
@@ -1979,14 +2062,14 @@ class ctof_paramfit(dbData):
                             elif alph=="Fe":
                                 charge_min="5"
                                 charge_max="16"
-                                elcolor="mediumblue"
+                                elcolor="brown"
                             elif alph=="Ni":
                                 charge_min="6"
                                 charge_max="14"
                                 elcolor="darkviolet"
                             
                             
-                            #elcolors=["b","g","r","k","orange","gray","m","y","c","olive","royalblue","pink",'mediumblue","darkviolet"]
+                            #elcolors=["b","g","r","k","orange","gray","m","y","c","olive","royalblue","pink","brown","darkviolet"]
                             if alph!=alph_old:
                                 #ax.plot(TOFpos_step,Epos_step,linestyle="None", marker="o", markersize=5., color=elcolor, label=r"$\rm{%s}^{1\plus \  - \ 2\plus}$"%alph)
                                 ax.plot(TOFpos_step,Epos_step,linestyle="None", marker="o", markersize=5., color=elcolor, label=r"$\rm{%s}^{%s\plus} \ - \ \rm{%s}^{%s\plus} $"%(alph,charge_min,alph,charge_max))
@@ -2296,8 +2379,8 @@ class ctof_paramfit(dbData):
                     #print "len(data_tof)",len(data_tof)
                 
                     #elements=["C","N","O",   "Ne",Mg,   "Si",    "S",   "Ca",   "Fe",   "Ni"]
-                    elcolors=["r","k","orange","m","c","olive","mediumblue","yellow","pink","gray"]
-                    #["b","r","g","c","y","m","k","gray","orange","olive","mediumblue","pink"]
+                    elcolors=["r","k","orange","m","c","olive","brown","yellow","pink","gray"]
+                    #["b","r","g","c","y","m","k","gray","orange","olive","brown","pink"]
                 
                     elnames=[]
                     i=0
@@ -2315,14 +2398,14 @@ class ctof_paramfit(dbData):
                             #return ionmodel_tof
                             #print i, max(ionmodel_tof),min(ionmodel_tof)
                         
-                            #elcolors=["b","g","r","k","orange","gray","m","y","c","olive","royalblue","pink",'mediumblue","darkviolet"]
+                            #elcolors=["b","g","r","k","orange","gray","m","y","c","olive","royalblue","pink","brown","darkviolet"]
                         
                             if plottof_element_colors==True:
                                 if ion.mass==59: 
                                     elcolor="darkviolet"
                                     elname=r"$\rm{Ni}$"
                                 if ion.mass==56: 
-                                    elcolor="mediumblue"
+                                    elcolor="brown"
                                     elname=r"$\rm{Fe}$"
                                 if ion.mass==40: 
                                     elcolor="gray"
@@ -2431,7 +2514,7 @@ class ctof_paramfit(dbData):
                                     elcolor="darkviolet"
                                     elname=r"$\rm{Ni}$"
                                 if ion.mass==56: 
-                                    elcolor="mediumblue"
+                                    elcolor="brown"
                                     elname=r"$\rm{Fe}$"
                                 if ion.mass==40: 
                                     elcolor="gray"
@@ -2852,10 +2935,7 @@ class ctof_paramfit(dbData):
                         #Ions_out.append([ion.name,vmin,velmin_stop])
                         Ions_out.append([ion.name,vmin,Vmin_stop[i]])
                     velmask=(vels>=vmin)*(vels<=vmax)
-                    velmean=0
-                    for m in range(len(vels[velmask])):
-                        velmean+=vels[velmask][m]*countscor[velmask][m]/len(vels[velmask])
-                    #velmean=average(vels[velmask],weights=countscor[velmask])	
+                    velmean=average(vels[velmask],weights=countscor[velmask])	
                     velmean_error=1./sum(countscor[velmask])*sqrt(sum(((vels[velmask]-velmean)*countscor_errors[velmask])**2))
                     Vmin[i]=vmin
                     Vmax[i]=vmax
@@ -2897,7 +2977,8 @@ class ctof_paramfit(dbData):
                 #ax = fig.add_axes([0.1, 0.1, 1.0, 0.75])
                 #fig.subplots_adjust(left=1.1*bbox.width)
                 fig.subplots_adjust(top=adjust_top)
-                Color=["b","r","green","cyan","y","m","k","gray","orange","olive","mediumblue","pink","indigo","teal","palegreen","navy","sandymediumblue","springgreen","mediumblue","b","r","green","cyan","y","m","k","gray","orange","olive","mediumblue","pink","indigo","teal","palegreen","navy","sandymediumblue","springgreen","mediumblue","b","r","green","cyan","y","m","k","gray","orange","olive","mediumblue","pink","indigo","teal","palegreen","navy","sandymediumblue","springgreen","mediumblue","b","r","green","cyan","y","m","k","gray","orange","olive","mediumblue","pink","indigo","teal","palegreen","navy","sandymediumblue","springgreen","mediumblue"]
+                
+                Color=["b","r","green","cyan","y","m","k","gray","orange","olive","brown","pink","indigo","teal","palegreen","navy","sandybrown","springgreen","gold","b","r","green","cyan","y","m","k","gray","orange","olive","brown","pink","indigo","teal","palegreen","navy","sandybrown","springgreen","gold"]
                 
 
                 ###############################################################################
@@ -3146,144 +3227,74 @@ class ctof_paramfit(dbData):
                     for ionname in ions_plot:
                         counts_header=counts_header+"counts_%s "%(ionname)
                     savetxt(counts_outfile_pathfile, counts_data_out, fmt='%.2f', delimiter=' ', newline='\n',header=counts_header)
-
+            
+            self.I=I
+            self.Vels=Vels
+            self.VelMin=VelMin
+            self.VelMax=VelMax
+            self.Countscor=Countscor
+            self.Countscor_errors=Countscor_errors
+            self.Ions_plot=array(ions_plot)
+            self.Proton_speed_eval=velref
+            return ions_plot,Velmeans
+            
+            
 
 ########################################  EFFICIENCY
 
-            if PlotEff==True:
-                Color=["b","r","green","cyan","y","m","k","gray","orange","olive","mediumblue","pink","indigo","teal","palegreen","navy","sandymediumblue","springgreen","mediumblue","b","r","green","cyan","y","m","k","gray","orange","olive","mediumblue","pink","indigo","teal","palegreen","navy","sandymediumblue","springgreen","mediumblue","b","r","green","cyan","y","m","k","gray","orange","olive","mediumblue","pink","indigo","teal","palegreen","navy","sandymediumblue","springgreen","mediumblue","b","r","green","cyan","y","m","k","gray","orange","olive","mediumblue","pink","indigo","teal","palegreen","navy","sandymediumblue","springgreen","mediumblue"]
-                with open("./Data/DCeffAellig.csv") as file_name:
-                    DCeffAellig = loadtxt(file_name, delimiter=",")
-                f_eff = interpolate.interp2d([4, 16, 40, 56], arange(1, 21, 1), DCeffAellig, kind='linear')
-                SSDeff_file = pd.read_csv("./Data/effKoeten.csv")  
-                #fig, ax = plt.subplots(1,2,figsize=(figx, figy))
-                fig, ax = plt.subplots()
-                element_names=[]
-                element_charges=[]
 
-                abundances,abundanceserr = zeros(len(I.Ions)),zeros(len(I.Ions))
-                
-                for i,ion in enumerate(I.Ions):
-                    name=ion.name
-                    element_names.append(name)
-                    print(name)
-                    m=ion.mass
-                    q=ion.charge
-                    element_charges.append(q)
-                    Cmax=amax(Countscor)
-                    color=Color[i]
-                    velmean=Velmean[i]
-                    vmin=Vmin[i]
-                    vmax=Vmax[i]
-                    vels=Vels[i]
-                    countscor=Countscor[i]
-                    countscor_errors=Countscor_errors[i]
-                    totcountseff=0
-                    totcountsefferr=0
-                    for v,vel in enumerate(vels):
-                        Eoq=10**(-3)*m*constants.proton_mass/(2*q*constants.elementary_charge)*(vel*10**3)**2 #in KeV/e
-                        Etot = (Eoq+25)*q # in KeV
-                        Eamu = Etot/m  # in Kev/amu
-                        #print('Eoq, Etot, Eamu:',Eoq, Etot, Eamu)
-                        FT = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'T'])
-                        FAS = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'AS'])
-                        FS = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'S'])
-                        TOFeff = f_eff(m, Eamu)[0]
-                        SSDeff = FT(Eoq)*FAS(Eoq)/FS(Eoq)*10**(-2)
-                        countscor[v]/=(TOFeff*SSDeff)
-                        if VelMin[2,i] <= vel <= VelMax[2,i]:
-                            totcountseff+=countscor[v]
-                            totcountsefferr+=countscor_errors[v]
-                    abundances[i]=totcountseff
-                    abundanceserr[i]=totcountsefferr/totcountseff
-                print('abundanceserr',abundanceserr)
-                abundances = [float(i)/sum(abundances) for i in abundances]
-                #ax.scatter(arange(1,len(element_names)+1,1), abundances, s=50)
-                #ax.bar(arange(1,len(element_names)+1,1), abundances, color=['red','red','red','mediumblue','mediumblue','mediumblue','red','red','red','red','mediumblue','mediumblue','mediumblue','mediumblue','red','red','red','red','red','mediumblue','mediumblue','mediumblue','mediumblue','mediumblue','mediumblue','red','red','red','red','red','red','mediumblue','mediumblue','mediumblue','red','red','red','red','red','red','red','red'][:len(abundances)])
-                ax.bar(arange(1,len(element_names)+1,1), abundances, color='mediumblue')
-                #for i, label in enumerate(element_names):
-                #    plt.annotate(label, (arange(1,len(element_names)+1,1)[i], abundances[i]))
-                #ax.set_xticks(np.add(element_charges,(0.8/2))) # set the position of the x ticks
-                ax.set_xticks(arange(1,len(element_names)+1,1))
-                label_up, label_down = [],[]
-                for elementn in element_names:
-                    elem=''
-                    qstate=''
-                    for letter in elementn:
-                        if not letter.isdigit() and letter!='+':
-                            elem+=letter
-                        else:
-                            qstate+=letter
-                    label_up.append(elem)
-                    label_down.append(qstate)
-                #labels=("{}".format(label_up[i])+"\n"+"{}".format(label_down[i]) for i in range(len(label_up)))
-                labels=element_charges
-                ax.set_xticklabels(labels, fontsize=12) #8
-                ax.tick_params(axis='y', which='minor')
-                #ax.grid(which='both', axis='y')
-                ax.set_title('Slow wind abundances DOY 174-220',fontsize=labelsize-2) #+8
-                ax.set_xlabel("Charge states of {}".format(label_up[0]),fontsize=labelsize-7) #Ion \ Spicies or Element \ charge \ state
-                ax.set_ylabel(r"$ \rm{abundance \ at \ v_p\in[330,340] \ [km/s]}$",fontsize=labelsize-7) # "\n" r"$\rm{[arb. \ units]
-                #ax.set_yscale('log')
-                plt.show()
 
-                elems=[]
-                errflags=[]
-                elemabundances=[]
-                ssabundance=[]
-                FIPS = pd.read_csv("./Data/FIP.csv")
-                plotfips=[]
-                for i,ion in enumerate(I.Ions):  
-                    name = ion.name
-                    elem=''
-                    qstate=''
-                    for letter in name:
-                        if not letter.isdigit() and letter!='+':
-                            elem+=letter
-                        else:
-                            qstate+=letter
-                    if not elem in elems and i!=0:
-                        print(elem)
-                        elems.append(elem)
-                        elemabundances.append(elemabundance)
-                        errflags.append(errflag)
-                        plotfips.append(FIPS.iloc[ion.atomnumber-1,1])
-                        elemabundance=abundances[i]
-                        errflag=abundanceserr[i]*abundances[i]
-                        ssabundance.append(10**(FIPS.iloc[ion.atomnumber-1,2]-12))
-                    elif not elem in elems and i==0:
-                        print(elem)
-                        elems.append(elem)
-                        plotfips.append(FIPS.iloc[ion.atomnumber-1,1])
-                        elemabundance=abundances[i]
-                        errflag=abundanceserr[i]*abundances[i]
-                        ssabundance.append(10**(FIPS.iloc[ion.atomnumber-1,2]-12))
-                    else:
-                        elemabundance+=abundances[i]
-                        errflag+=abundanceserr[i]*abundances[i]
-                errflags.append(errflag)
-                elemabundances.append(elemabundance)
-                print(elemabundances)
-                print('ssabundance',ssabundance)
-                print('errflags1',errflags)
-                relelemabundances=[(elemabundances[i] / elemabundances[2]) / (ssabundance[i]/ssabundance[2]) for i in range(len(elemabundances))]
-                errflags=[(errflags[i] / elemabundances[i] * relelemabundances[i]) for i in range(len(elemabundances))]
-                print(relelemabundances)
-                print('errflags',errflags)
-                print('relerrflags',[errflags[i]/relelemabundances[i] for i in range(len(errflags))])
-                fig, ax = plt.subplots()
-                ax.errorbar(plotfips, relelemabundances, yerr=errflags, marker='o',color='k',ecolor='k',markerfacecolor='g',label="series 2",capsize=5,linestyle='None')
-                for i, txt in enumerate(elems):
-                    ax.annotate(txt, (plotfips[i]+.25, relelemabundances[i]), fontsize=12)
-                ax.set_yscale('log')
-                ax.set_title('FIP enhancement of average element abundance ratios for fast wind')
-                ax.set_xlabel(r"$ \rm{First \ ionization \ potential \ (FIP) \ [V]}$",fontsize=labelsize-5)
-                ax.set_ylabel(r"$ \rm{(X/O)/(X/O)_\ominus}$",fontsize=labelsize-5)
-                ax.tick_params(axis='y', which='minor')
-                plt.show()
+    def apply_efficiency_correction(self,velmin_select=None,velmax_select=None):
+            with open("./Data/DCeffAellig.csv") as file_name:
+                DCeffAellig = loadtxt(file_name, delimiter=",")
+            f_eff = interpolate.interp2d([4, 16, 40, 56], arange(1, 21, 1), DCeffAellig, kind='linear')
+            SSDeff_file = pd.read_csv("./Data/effKoeten.csv")  
+            #fig, ax = plt.subplots(1,2,figsize=(figx, figy))
+            element_names=[]
+            element_charges=[]
+
+            counts_effcor = zeros(len(self.I.Ions))
+            counts_effcor_unc = zeros(len(self.I.Ions))
+            for i,ion in enumerate(self.I.Ions):
+                name=ion.name
+                element_names.append(name)
+                print(name)
+                m=ion.mass
+                q=ion.charge
+                element_charges.append(q)
+                """
+                Cmax=amax(self.Countscor)
+                color=Color[i]
+                velmean=Velmean[i]
+                vmin=Vmin[i]
+                vmax=Vmax[i]
+                """
+                vels=self.Vels[i]
+                countscor=self.Countscor[i]
+                countscor_errors=self.Countscor_errors[i]
+                totcountseff=0
+                for v,vel in enumerate(vels):
+                    Eoq=10**(-3)*m*constants.proton_mass/(2*q*constants.elementary_charge)*(vel*10**3)**2 #in KeV/e
+                    Etot = (Eoq+25)*q # in KeV
+                    Eamu = Etot/m  # in Kev/amu
+                    #print('Eoq, Etot, Eamu:',Eoq, Etot, Eamu)
+                    FT = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'T'])
+                    FAS = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'AS'])
+                    FS = interpolate.interp1d(SSDeff_file['eoq'], SSDeff_file[name+'S'])
+                    TOFeff = f_eff(m, Eamu)[0]
+                    SSDeff = FT(Eoq)*FAS(Eoq)/FS(Eoq)*10**(-2)
+                    countscor[v]/=(TOFeff*SSDeff)
                     
-                
-                print('abundances',abundances)
-            return ions_plot,Velmeans
-            #return ions_plot,Velmean,Velmean_error,Velmean_error_boot, Vmin,Vmax,velmin_stop,fitparams,Ions_out 
-    
+                    if (velmin_select!=None and velmax_select!=None):
+                        if velmin_select <= vel <= velmax_select:
+                            totcountseff+=countscor[v]
+                    else:
+                        if self.VelMin[2,i] <= vel <= self.VelMax[2,i]:
+                            totcountseff+=countscor[v]
+                counts_effcor[i]=totcountseff
+                counts_effcor_unc[i]=totcountseff*eff_unc(Z=ion.atomnumber)
+            self.Counts_effcor=counts_effcor    
+            self.Counts_effcor_unc=counts_effcor_unc
+            self.Ions_effcor=self.Ions_plot
+            self.element_names=element_names
+
