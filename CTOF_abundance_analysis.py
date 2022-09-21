@@ -24,8 +24,8 @@ import datetime as dt
 from peakshape_functions import *
 
 
-#ionlist_analyze=["C4+","C5+","C6+","N5+","N6+","N7+","O6+","O7+","O8+","Ne8+","Mg6+","Mg7+","Mg8+","Mg9+","Mg10+","Si7+","Si8+","Si9+","Si10+","S7+","S8+","S9+","Ca10+","Ca11+","Fe7+","Fe8+","Fe9+","Fe10+","Fe11+","Fe12+","Fe13+"]
-ionlist_analyze=["C4+","C5+","C6+","O5+","O6+","O7+","O8+","Si5+","Si6+","Si7+","Si8+","Si9+","Si10+","Si11+","Fe6+","Fe7+","Fe8+","Fe9+","Fe10+","Fe11+","Fe12+","Fe13+"]
+ionlist_analyze=["C4+","C5+","C6+","N5+","N6+","N7+","O5+","O6+","O7+","O8+","Ne8+","Mg6+","Mg7+","Mg8+","Mg9+","Mg10+","Si7+","Si8+","Si9+","Si10+","S7+","S8+","S9+","Ca10+","Ca11+","Fe7+","Fe8+","Fe9+","Fe10+","Fe11+","Fe12+","Fe13+"]
+#ionlist_analyze=["C4+","C5+","C6+","O5+","O6+","O7+","O8+","Si5+","Si6+","Si7+","Si8+","Si9+","Si10+","Si11+","Fe6+","Fe7+","Fe8+","Fe9+","Fe10+","Fe11+","Fe12+","Fe13+"]
 class ctof_abundances(ctof_paramfit):
     """
     Docstring!
@@ -125,18 +125,25 @@ class ctof_abundances(ctof_paramfit):
                 Maxcounts=float(max(Ioncounts_effcor))
                 abundances = concatenate([Ioncounts_effcor[i]/Maxcounts for i in arange(len(ions_plot))])
                 abundances_unc = concatenate([Ioncounts_effcor_unc[i]/Maxcounts for i in arange(len(ions_plot))])
-            ChiantiData = pd.read_csv("./Data/ChiantiResults/"+elem+".csv")
+            else:
+                abundances = concatenate([Ioncounts_effcor[i] for i in arange(len(ions_plot))])
+                abundances_unc = concatenate([Ioncounts_effcor_unc[i] for i in arange(len(ions_plot))])
+            ChiantiData = pd.read_csv("./Data/ChiantiResults/"+elem+"Long.csv")[ions_plot]
             width = 0.25
-            t = 1.e+5*arange(15)+5.e+5
+            t = 1.e+4*arange(150)+5.e+5
             chis=zeros_like(t)
             for temperature in range(len(t)):
-                for i in range(len(abundances)):
+                '''for i in range(len(abundances)):
                     ErrorVal = abundances[i]/sum(abundances)/ChiantiData.iloc[temperature][i]/sum(ChiantiData.iloc[temperature])
                     if ErrorVal < 1:
                         ErrorVal = 1/ErrorVal
-                    chis[temperature]+=ErrorVal 
-                    
-                #chis[temperature]=scipy.stats.chisquare(abundances/sum(abundances),ChiantiData.iloc[temperature]/sum(ChiantiData.iloc[temperature]))[0]
+                    chis[temperature]+=ErrorVal'''
+                #expabundances=[log(i) for i in abundances]
+                #expchianti=[log(i) for i in ChiantiData.iloc[temperature]]
+                #frozensum=sum(expchianti)
+                #expchianti=[i*sum(expabundances)/frozensum for i in expchianti]
+                #chis[temperature]=scipy.stats.chisquare(expabundances,expchianti)[0]
+                chis[temperature]=scipy.stats.chisquare(abundances/sum(abundances),ChiantiData.iloc[temperature]/sum(ChiantiData.iloc[temperature]))[0]
                 
                 '''if elem == 'Fe':
                     fig, ax = plt.subplots(figsize=(figx, figy))
@@ -156,7 +163,13 @@ class ctof_abundances(ctof_paramfit):
                     ax.set_ylabel(r"$ \rm{rel.abundance \ at \ v_p = (%i \pm 5) \ km/s}$"%(self.Proton_speed_eval), fontsize=labelsize)
                     ax.set_title('rel. '+elem+' charge state abundances at '+str(t[temperature]/1e6)+' MK')
                     fig.show()'''
-            minpos = where(chis==min(chis))[0][0]
+            minpos=where(chis==min(chis))[0][0]
+            print('temp',elem,t[minpos])
+            fig, ax = plt.subplots()
+            ax.plot(t,chis)
+            ax.scatter([t[minpos]],0.5)
+            ax.set_yscale('log')
+            fig.show()
             fig, ax = plt.subplots(figsize=(figx, figy))
             ax.bar(arange(len(ions_plot)), abundances/sum(abundances), width=width,edgecolor = 'black', label='SOHO')
             ax.bar(arange(len(ions_plot))+width, ChiantiData.iloc[minpos]/sum(ChiantiData.iloc[minpos]), width=width,edgecolor = 'black', label='Chianti')
@@ -165,7 +178,7 @@ class ctof_abundances(ctof_paramfit):
             labels=(elementn for elementn in ions_plot)
             ax.set_xticklabels(labels)
             ax.legend(loc="upper left")
-            ax.set_ylim(0,1.5)
+            ax.set_ylim(0,1)
             if yscale_log==True:
                 ax.set_ylim(min(abundances)/2.,1.5)
                 ax.set_yscale('log')
@@ -195,8 +208,8 @@ class ctof_abundances(ctof_paramfit):
                 Maxcounts=float(max(Ioncounts_effcor))
                 abundances = concatenate([Ioncounts_effcor[i]/Maxcounts for i in arange(len(ions_plot))])
             abundances=abundances[::-1]
+            ChiantiData = pd.read_csv("./Data/ChiantiResults/"+elem+"Long.csv")[ions_plot]
             ions_plot.reverse()
-            ChiantiData = pd.read_csv("./Data/ChiantiResults/"+elem+"Long.csv")
             width = 0.25
             t = 1.e+4*arange(150)+5.e+5
             TempResults,abundanceRatio = zeros(len(ions_plot)-1),zeros(len(ions_plot)-1)
@@ -407,28 +420,34 @@ class ctof_abundances(ctof_paramfit):
 #main()        
 d=ctof_abundances(timeframe=[[174,176]],minute_frame=[0,1440],load_processed_PHAdata=True)
 
+IMAGES_SAVING=False
+PlotInLog=False
 d.analyze_slowwind(velmin_select=310,velmax_select=360)
+print('SLOW WIND')
 #d.plot_relative_chargestate_abundances(ions_plot=['C4+','C5+','C6+','O5+','O6+','O7+','O8+','Si5+','Si6+','Si7+','Si8+','Si9+','Si10+','Si11+','Fe6+','Fe7+','Fe8+','Fe9+','Fe10+','Fe11+','Fe12+','Fe13+'],norm='max',figx=21,save_figure=False,figtitle="all_chargestates_slowwind")
-d.plot_chargestate_abundances_chianticomparison(elem='Fe',ions_plot=['Fe6+','Fe7+','Fe8+','Fe9+','Fe10+','Fe11+','Fe12+','Fe13+'],norm='sum',figx=21,save_figure=True,figtitle="FeChiantiComparisonSLOW")
-d.plot_chargestate_abundances_chianticomparison(elem='Si',ions_plot=['Si5+','Si6+','Si7+','Si8+','Si9+','Si10+','Si11+'],norm='sum',figx=21,save_figure=True,figtitle="SiChiantiComparisonSLOW")
-d.plot_chargestate_abundances_chianticomparison(elem='O',ions_plot=['O5+','O6+','O7+','O8+'],norm='sum',figx=21,save_figure=True,figtitle="OChiantiComparisonSLOW")
-d.plot_chargestate_abundances_chianticomparison(elem='C',ions_plot=['C4+','C5+','C6+'],norm='sum',figx=21,save_figure=True,figtitle="CChiantiComparisonSLOW")
-d.plot_chianticomparison_of_ratios(elem='Fe',ions_plot=['Fe6+','Fe7+','Fe8+','Fe9+','Fe10+','Fe11+','Fe12+','Fe13+'], yscale_log=True,labelsize=16,norm="sum",save_figure=True,figtitle="FeRatiosTemperaturesSLOW")
-d.plot_chianticomparison_of_ratios(elem='Si',ions_plot=['Si5+','Si6+','Si7+','Si8+','Si9+','Si10+','Si11+'], yscale_log=True,labelsize=16,norm="sum",save_figure=True,figtitle="SiRatiosTemperaturesSLOW")
-d.plot_chianticomparison_of_ratios(elem='O',ions_plot=['O5+','O6+','O7+','O8+'], yscale_log=True,labelsize=16,norm="sum",save_figure=True,figtitle="ORatiosTemperaturesSLOW")
-d.plot_chianticomparison_of_ratios(elem='C',ions_plot=['C4+','C5+','C6+'], yscale_log=True,labelsize=16,norm="sum",save_figure=True,figtitle="CRatiosTemperaturesSLOW")
+
+d.plot_chargestate_abundances_chianticomparison(elem='Fe',ions_plot=['Fe8+','Fe9+','Fe10+','Fe11+'],norm='',figx=21,save_figure=IMAGES_SAVING,yscale_log=PlotInLog,figtitle="FeChiantiComparisonSLOW")
+d.plot_chargestate_abundances_chianticomparison(elem='Si',ions_plot=['Si8+','Si9+','Si10+'],norm='',figx=21,save_figure=IMAGES_SAVING,yscale_log=PlotInLog,figtitle="SiChiantiComparisonSLOW")
+d.plot_chargestate_abundances_chianticomparison(elem='O',ions_plot=["O6+",'O7+'],norm='',figx=21,save_figure=IMAGES_SAVING,yscale_log=PlotInLog,figtitle="OChiantiComparisonSLOW")
+d.plot_chargestate_abundances_chianticomparison(elem='C',ions_plot=['C4+','C5+'],norm='',figx=21,save_figure=IMAGES_SAVING,yscale_log=PlotInLog,figtitle="CChiantiComparisonSLOW")
+
+d.plot_chianticomparison_of_ratios(elem='Fe',ions_plot=['Fe8+','Fe9+','Fe10+','Fe11+'], yscale_log=True,labelsize=16,norm="sum",save_figure=IMAGES_SAVING,figtitle="FeRatiosTemperaturesSLOW")
+d.plot_chianticomparison_of_ratios(elem='Si',ions_plot=['Si8+','Si9+','Si10+'], yscale_log=True,labelsize=16,norm="sum",save_figure=IMAGES_SAVING,figtitle="SiRatiosTemperaturesSLOW")
+d.plot_chianticomparison_of_ratios(elem='O',ions_plot=['O6+','O7+'], yscale_log=True,labelsize=16,norm="sum",save_figure=IMAGES_SAVING,figtitle="ORatiosTemperaturesSLOW")
+d.plot_chianticomparison_of_ratios(elem='C',ions_plot=['C4+','C5+','C6+'], yscale_log=True,labelsize=16,norm="sum",save_figure=IMAGES_SAVING,figtitle="CRatiosTemperaturesSLOW")
 #d.plot_relative_element_abundances(literature_abundances="slow",figx=10.5, figy=8, save_figure=True, figtitle="elemental_abundanc es_slow")
 #enh_slow,enh_slow_unc=d.get_FIP_enhancement(SW_type="slow")
 
 d.analyze_fastwind(velmin_select=470,velmax_select=600)
-d.plot_chargestate_abundances_chianticomparison(elem='Fe',ions_plot=['Fe6+','Fe7+','Fe8+','Fe9+','Fe10+','Fe11+','Fe12+','Fe13+'],norm='sum',figx=21,save_figure=True,figtitle="FeChiantiComparisonFAST")
-d.plot_chargestate_abundances_chianticomparison(elem='Si',ions_plot=['Si5+','Si6+','Si7+','Si8+','Si9+','Si10+','Si11+'],norm='sum',figx=21,save_figure=True,figtitle="SiChiantiComparisonFAST")
-d.plot_chargestate_abundances_chianticomparison(elem='O',ions_plot=['O5+','O6+','O7+','O8+'],norm='sum',figx=21,save_figure=True,figtitle="OChiantiComparisonFAST")
-d.plot_chargestate_abundances_chianticomparison(elem='C',ions_plot=['C4+','C5+','C6+'],norm='sum',figx=21,save_figure=True,figtitle="CChiantiComparisonFAST")
-d.plot_chianticomparison_of_ratios(elem='Fe',ions_plot=['Fe6+','Fe7+','Fe8+','Fe9+','Fe10+','Fe11+','Fe12+','Fe13+'], yscale_log=True,labelsize=16,norm="sum",save_figure=True,figtitle="FeRatiosTemperaturesFAST")
-d.plot_chianticomparison_of_ratios(elem='Si',ions_plot=['Si5+','Si6+','Si7+','Si8+','Si9+','Si10+','Si11+'], yscale_log=True,labelsize=16,norm="sum",save_figure=True,figtitle="SiRatiosTemperaturesFAST")
-d.plot_chianticomparison_of_ratios(elem='O',ions_plot=['O5+','O6+','O7+','O8+'], yscale_log=True,labelsize=16,norm="sum",save_figure=True,figtitle="ORatiosTemperaturesFAST")
-d.plot_chianticomparison_of_ratios(elem='C',ions_plot=['C4+','C5+','C6+'], yscale_log=True,labelsize=16,norm="sum",save_figure=True,figtitle="CRatiosTemperaturesFAST")
+print('FAST WIND')
+d.plot_chargestate_abundances_chianticomparison(elem='Fe',ions_plot=['Fe8+','Fe9+','Fe10+','Fe11+'],norm='',figx=21,save_figure=IMAGES_SAVING,yscale_log=PlotInLog,figtitle="FeChiantiComparisonFAST")
+d.plot_chargestate_abundances_chianticomparison(elem='Si',ions_plot=['Si8+','Si9+','Si10+'],norm='',figx=21,save_figure=IMAGES_SAVING,yscale_log=PlotInLog,figtitle="SiChiantiComparisonFAST")
+d.plot_chargestate_abundances_chianticomparison(elem='O',ions_plot=['O6+','O7+'],norm='',figx=21,save_figure=IMAGES_SAVING,yscale_log=PlotInLog,figtitle="OChiantiComparisonFAST")
+d.plot_chargestate_abundances_chianticomparison(elem='C',ions_plot=['C4+','C5+','C6+'],norm='',figx=21,save_figure=IMAGES_SAVING,yscale_log=PlotInLog,figtitle="CChiantiComparisonFAST")
+d.plot_chianticomparison_of_ratios(elem='Fe',ions_plot=['Fe8+','Fe9+','Fe10+','Fe11+'], yscale_log=True,labelsize=16,norm="sum",save_figure=IMAGES_SAVING,figtitle="FeRatiosTemperaturesFAST")
+d.plot_chianticomparison_of_ratios(elem='Si',ions_plot=['Si8+','Si9+','Si10+'], yscale_log=True,labelsize=16,norm="sum",save_figure=IMAGES_SAVING,figtitle="SiRatiosTemperaturesFAST")
+d.plot_chianticomparison_of_ratios(elem='O',ions_plot=['O6+','O7+'], yscale_log=True,labelsize=16,norm="sum",save_figure=IMAGES_SAVING,figtitle="ORatiosTemperaturesFAST")
+d.plot_chianticomparison_of_ratios(elem='C',ions_plot=['C4+','C5+','C6+'], yscale_log=True,labelsize=16,norm="sum",save_figure=IMAGES_SAVING,figtitle="CRatiosTemperaturesFAST")
 #d.plot_relative_chargestate_abundances(ions_plot=d.Ions_effcor,figx=21,save_figure=True,figtitle="all_chargestates_fastwind")
 #d.plot_relative_element_abundances(literature_abundances="fast",figx=10.5, figy=8,save_figure=True, figtitle="elemental_abundances_fast")
 #enh_fast,enh_fast_unc=d.get_FIP_enhancement(SW_type="fast")
